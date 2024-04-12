@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>自动化工具</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.11/cropper.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 30px 1fr;
+            min-height: 100vh;
+        }
+
+
+        body,
+        html {
+            padding: 0;
+            margin: 0;
+        }
+
+        ol {
+            padding-inline-start: 1rem;
+            list-style: square;
+        }
+
+        ol>li {
+            padding: 0.5rem;
+            display: flex;
+            margin-top: 0.5rem;
+        }
+
+        ol>li>* {
+            margin-right: 0.8rem;
+        }
+
+        ol>li>img {
+            max-height: 5rem;
+            border: 1px solid #39f;
+            max-width: 26vw;
+        }
+
+
+        .list .moving {
+            background: transparent;
+            color: transparent;
+            border: 1px dashed #ccc;
+        }
+
+        .img-warp {
+            min-height: calc(100vh - 5rem);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app" class="row ">
+        <div class="px-3 py-3">
+            <button class="mb-2 px-2 py-1 text-sm text-white rounded-md shadow-sm bg-sky-600" @click=" toggelCut">
+                {{cutFlag?'停止截屏':'截屏'}}
+            </button>
+            <div class="img-warp flex justify-center items-center">
+                <img ref="image" :src="'data:image/jpeg;base64,'" id="image">
+            </div>
+        </div>
+
+        <button :class="cutFlag?'bg-sky-600':'bg-sky-300'" class=" px-2 text-sm text-white shadow-sm " @click=" split">
+            裁剪
+        </button>
+        <div class="px-3 py-3 ">
+            <input class="ml-10 focus:ring-2 focus:ring-blue-600 focus:outline-none rounded-md py-1 pl-2 ring-1  "
+                type="text" placeholder="脚本名称">
+            <ol class="list">
+                <li draggable="true" v-for="(step,i) in steps" class="flex items-center">
+                    <label for="" title="执行到此">▶️ </label>
+                    <select class="focus:ring-2 focus:ring-blue-600 focus:outline-none rounded-md py-1 pl-2 ring-1  "
+                        v-model="step.type">
+                        <option v-for="e in events" :value="e" v-text="e"></option>
+                    </select>
+                    <img v-if="(step.type=='click'||step.type=='input')&&step.data" :src="step.data" alt="">
+                    <template v-if="step.type=='input'">
+                        <select
+                            class="focus:ring-2 focus:ring-blue-600 focus:outline-none rounded-md py-1 pl-2 ring-1  "
+                            v-model="step.value">
+                            <option v-for="k in excelcols" :value="k" v-text="k"></option>
+                        </select>
+                        <input class="focus:ring-2 focus:ring-blue-600 focus:outline-none rounded-md py-1 pl-2 ring-1  "
+                            v-if="step.value=='固定值'" v-model="step.value2" type="text">
+                    </template>
+                    <template v-else-if="step.type=='keyboard'">
+                        <select
+                            class="focus:ring-2 focus:ring-blue-600 focus:outline-none rounded-md py-1 pl-2 ring-1  "
+                            v-model="step.value">
+                            <option v-for="k in keyboards" :value="k" v-text="k"></option>
+                        </select>
+                    </template>
+                    <template v-else-if="step.type=='sys call'">
+                        <select
+                            class="focus:ring-2 focus:ring-blue-600 focus:outline-none rounded-md py-1 pl-2 ring-1  "
+                            v-model="step.value">
+                            <option v-for="k in sysCalls" :value="k" v-text="k"></option>
+                        </select>
+                    </template>
+                    <template v-else-if="step.type=='read'">
+                        <select
+                            class="focus:ring-2 focus:ring-blue-600 focus:outline-none rounded-md py-1 pl-2 ring-1  "
+                            v-model="step.value">
+                            <option v-for="k in reads" :value="k" v-text="k"></option>
+                        </select>
+                        <input v-if="step.value=='读取excel文件'" type="file">
+                    </template>
+                    <template v-else-if="step.type=='write'">
+                        <select
+                            class="focus:ring-2 focus:ring-blue-600 focus:outline-none rounded-md py-1 pl-2 ring-1  "
+                            v-model="step.value">
+                            <option v-for="k in writes" :value="k" v-text="k"></option>
+                        </select>
+                    </template>
+                    <template v-else-if="step.type=='branch'">
+                        <label for="">当</label>
+                        <select
+                            class="focus:ring-2 focus:ring-blue-600 focus:outline-none rounded-md py-1 pl-2 ring-1  "
+                            v-model="step.value">
+                            <option v-for="k in branchpreds" :value="k" v-text="k"></option>
+                        </select>
+                        <input v-if="step.value&&step.value.includes('var')" v-model="step.value2"
+                            class="mx-2 focus:ring-2 focus:ring-blue-600 focus:outline-none rounded-md py-1 pl-2 ring-1  "
+                            type="text" placeholder="值" />
+                        <label for=""> 回到 </label>
+                        <select
+                            class="focus:ring-2 focus:ring-blue-600 focus:outline-none rounded-md py-1 pl-2 ring-1  "
+                            v-model="step.value3">
+                            <option v-for="k in branchs" :value="k" v-text="k"></option>
+                        </select>
+                    </template>
+                    <template v-else-if="step.type=='label'">
+                        <input class="focus:ring-2 focus:ring-blue-600 focus:outline-none rounded-md py-1 pl-2 ring-1  "
+                            v-model="step.value" type="text">
+
+                    </template>
+                    <label class="del" @click="remove(i)" for="" title="删除">❌️ </label>
+                </li>
+            </ol>
+            <button
+                class="mx-10 mt-5 px-4 py-2 text-sm bg-sky-600 text-white rounded-md shadow-sm hover:scale-105 ease-in duration-100"
+                @click="add('click','')">➕添加下一步</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.11/cropper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.0.0"></script>
+    <script>
+
+
+        const { createApp, ref, onMounted, computed } = Vue
+        createApp({
+            setup() {
+                const steps = ref([])
+                const events = ['click', 'keyboard', 'input', 'sys call', 'read', 'write', 'label', 'branch']
+                const keyboards = ['ctrl+a', 'ctrl+c', 'ctrl+v']
+                const sysCalls = ['清空剪贴板', '读取剪贴板到var', '截屏到var', '获取屏幕中文字到var', '获取excel第一列到var', '获取excel第二列到var',]
+                const reads = ['读取excel文件', '读取下一行excel']
+                const writes = ['读取剪贴板行写入一列', '读取var excel行写入一列']
+                const branchs = computed(() => steps.value.filter(o => o.type == 'label').map(o => o.value))
+                const branchpreds = ['不是最后一行', 'var中存在', 'var中不存在', '循环多少次']
+                const excelcols = ['excel第一列', 'excel第二列', 'var', '固定值']
+                const image = ref(null)
+                let cropper = null
+                onMounted(() => {
+
+
+                    async function init() {
+                        if (!cutFlag.value) {
+                            let im = await (await fetch('http://192.168.8.56:5000/screen', { method: 'GET' })).text()
+                            image.value.src = 'data:image/jpeg;base64,' + im
+                        }
+
+                    }
+
+                    setInterval(init, 1000);
+
+                    init()
+
+                    let list = document.querySelector('.list')
+                    let currentLi
+                    list.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.effectAllowed = 'move'
+                        currentLi = e.target
+                        setTimeout(() => {
+                            currentLi.classList.add('moving')
+                        })
+                    })
+
+                    list.addEventListener('dragenter', (e) => {
+                        e.preventDefault()
+                        if (e.target === currentLi || e.target === list) {
+                            return
+                        }
+                        let liArray = Array.from(list.childNodes)
+                        let currentIndex = liArray.indexOf(currentLi)
+                        let targetindex = liArray.indexOf(e.target)
+
+                        if (currentIndex < targetindex) {
+
+                            list.insertBefore(currentLi, e.target.nextElementSibling)
+                        } else {
+
+                            list.insertBefore(currentLi, e.target)
+                        }
+                    })
+                    list.addEventListener('dragover', (e) => {
+                        e.preventDefault()
+                    })
+                    list.addEventListener('dragend', (e) => {
+                        currentLi.classList.remove('moving')
+                    })
+
+                })
+                function split() {
+                    // 获取裁剪结果（返回裁剪后的图像数据）
+                    let croppedData = cropper.getCroppedCanvas().toDataURL('image/jpeg');
+                    add('click', croppedData);
+                }
+
+                function add(type, data) {
+                    steps.value.push({ type, data, value: '' })
+                }
+
+                function remove(index) {
+                    steps.value.splice(index, 1)
+                }
+
+                const cutFlag = ref(false)
+
+                function cut() {
+                    cutFlag.value = true
+                    cropper = new Cropper(image.value, {
+                        background: false,
+                        autoCrop: true, // 自动创建裁剪框
+                        viewMode: 2, // 设置裁剪框可移动和缩放的范围
+                    });
+                }
+
+                function stopCut() {
+                    cutFlag.value = false
+                    cropper.destroy()
+                }
+
+                function toggelCut() {
+                    if (cutFlag.value) {
+                        stopCut()
+                    } else {
+                        cut()
+                    }
+                }
+
+
+
+                return {
+                    steps,
+                    events,
+                    keyboards,
+                    sysCalls,
+                    reads,
+                    writes,
+                    branchs,
+                    branchpreds,
+                    excelcols,
+                    image,
+                    split,
+                    add,
+                    remove,
+                    cutFlag,
+                    toggelCut
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+
+</html>
