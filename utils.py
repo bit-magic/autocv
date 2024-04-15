@@ -13,3 +13,18 @@ def img2base64(img):
 def base642img(base64str):
     im_bytes = base64.b64decode(base64str)
     return Image.open(BytesIO(im_bytes))
+
+
+def is_num(s):
+    s = str(s)
+    if s.count('.') == 1:
+        left = s.split('.')[0]
+        right = s.split('.')[1]
+        if right.isdigit():
+            if left.count('-') == 1 and left.startswith('-'):
+                num = left.split['-'][-1]
+                if num.isdigit():
+                    return True
+            elif left.isdigit():
+                return True
+    return False
