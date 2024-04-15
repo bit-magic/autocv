@@ -12,7 +12,7 @@ def keyboard(env, *args):
     pyautogui.hotkey(*args)
 
 
-def click(env, base64str, args):
+def click(env, base64str, args={}):
     return pyautogui.click(** {** __getbox(base64str), ** args})
 
 
@@ -20,10 +20,14 @@ def scroll(env, varname):
     return pyautogui.scroll(getval(env, varname))
 
 
-def input(env, base64str, varname, args):
+def input(env, base64str, varname, args={}):
     # print("{} {} {}".format(base64str, var, args))
     click(env, base64str, args)
     return pyautogui.write(getval(env, varname))
+
+
+def getbox(env, base64str, varname):
+    setval(env, varname, __getbox(base64str))
 
 
 def syscall(env, id, arg):
