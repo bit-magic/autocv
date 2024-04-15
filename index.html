@@ -71,13 +71,14 @@
             <input class="ml-10 focus:ring-2 focus:ring-blue-600 focus:outline-none rounded-md py-1 pl-2 ring-1  "
                 type="text" placeholder="脚本名称">
             <ol class="list">
-                <li draggable="true" v-for="(step,i) in steps" class="flex items-center">
-                    <label for="" title="执行到此">▶️ </label>
+                <li draggable="true" v-for="(step,i) in steps" class="flex items-center" :data-index="i">
+                    {{step.sort+1}}
+                    <label for="" title="执行到此" @click="run(step.sort)">▶️ </label>
                     <select class="focus:ring-2 focus:ring-blue-600 focus:outline-none rounded-md py-1 pl-2 ring-1  "
                         v-model="step.type">
                         <option v-for="e in events" :value="e" v-text="e"></option>
                     </select>
-                    <img v-if="(step.type=='click'||step.type=='input')&&step.data" :src="step.data" alt="">
+                    <img v-if="(step.type=='click'||step.type=='input')&&step.img" :src="step.img" alt="">
                     <template v-if="step.type=='input'">
                         <select
                             class="focus:ring-2 focus:ring-blue-600 focus:outline-none rounded-md py-1 pl-2 ring-1  "
@@ -85,7 +86,7 @@
                             <option v-for="k in excelcols" :value="k" v-text="k"></option>
                         </select>
                         <input class="focus:ring-2 focus:ring-blue-600 focus:outline-none rounded-md py-1 pl-2 ring-1  "
-                            v-if="step.value=='固定值'" v-model="step.value2" type="text">
+                            v-if="step.value=='固定值'" v-model="step.data[1]" type="text">
                     </template>
                     <template v-else-if="step.type=='keyboard'">
                         <select
@@ -143,7 +144,7 @@
             </ol>
             <button
                 class="mx-10 mt-5 px-4 py-2 text-sm bg-sky-600 text-white rounded-md shadow-sm hover:scale-105 ease-in duration-100"
-                @click="add('click','')">➕添加下一步</button>
+                @click="add('click')">➕添加下一步</button>
         </div>
     </div>
 
@@ -166,16 +167,31 @@
                 const excelcols = ['excel第一列', 'excel第二列', 'var', '固定值']
                 const image = ref(null)
                 let cropper = null
+                const records = function () {
+                    steps.value.sort((x, y) => x.sor - y.sor)
+                    return steps.value.map(o => [o.type, ...o.data.filter(i => i != undefined).map(str => "'" + str + "'")].join(' '))
+                }
+
+                async function run(index) {
+                    console.log(JSON.stringify(records.value))
+                    let data = await (await fetch('http://192.168.8.56:5000/inter', {
+                        method: 'POST', headers: {
+                            "Content-Type": "application/json",
+                        }, body: JSON.stringify({ expr: records().slice(0, index + 1) })
+                    })).text()
+                }
                 onMounted(() => {
 
 
                     async function init() {
                         if (!cutFlag.value) {
-                            let im = await (await fetch('http://localhost:5000/screen', { method: 'GET' })).text()
+                            let im = await (await fetch('http://192.168.8.56:5000/screen', { method: 'GET' })).text()
                             image.value.src = 'data:image/jpeg;base64,' + im
                         }
 
                     }
+
+
 
                     setInterval(init, 1000);
 
@@ -199,12 +215,9 @@
                         let liArray = Array.from(list.childNodes)
                         let currentIndex = liArray.indexOf(currentLi)
                         let targetindex = liArray.indexOf(e.target)
-
                         if (currentIndex < targetindex) {
-
                             list.insertBefore(currentLi, e.target.nextElementSibling)
                         } else {
-
                             list.insertBefore(currentLi, e.target)
                         }
                     })
@@ -213,17 +226,22 @@
                     })
                     list.addEventListener('dragend', (e) => {
                         currentLi.classList.remove('moving')
+                        Array.from(document.querySelectorAll('.list li')).forEach((item, index) => {
+                            console.log()
+                            steps.value[item.getAttribute('data-index')].sort = index
+                        })
+
                     })
 
                 })
                 function split() {
                     // 获取裁剪结果（返回裁剪后的图像数据）
                     let croppedData = cropper.getCroppedCanvas().toDataURL('image/jpeg');
-                    add('click', croppedData);
+                    add('click', { img: croppedData }, [croppedData.split(',')[1], ,]);
                 }
 
-                function add(type, data) {
-                    steps.value.push({ type, data, value: '' })
+                function add(type, obj = {}, data = [, , ,]) {
+                    steps.value.push({ type, data, ...obj, sort: steps.value.length })
                 }
 
                 function remove(index) {
@@ -271,7 +289,8 @@
                     add,
                     remove,
                     cutFlag,
-                    toggelCut
+                    toggelCut,
+                    run
                 }
             }
         }).mount('#app')
